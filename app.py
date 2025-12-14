@@ -63,7 +63,15 @@ if st.sidebar.button("초기값 적용"):
 
 st.sidebar.markdown("---")
 
-# 3) 사이드바: 정책 파라미터 입력
+# ✅ 3) 모드 선택 기능 추가
+mode = st.sidebar.selectbox(
+    "경제 모델 모드 선택",
+    ["안정형", "현실형", "위기형"]
+)
+
+st.sidebar.markdown("---")
+
+# 4) 사이드바: 정책 파라미터 입력
 st.sidebar.header("정책 및 외생 변수")
 
 st.sidebar.subheader("통화·세제·비용·환율")
@@ -127,11 +135,11 @@ policy = PolicyInput(
     productivity=productivity,
 )
 
-# 4) 버튼: 시뮬레이션 실행 / 전체 초기화
+# 5) 버튼: 시뮬레이션 실행 / 전체 초기화
 col1, col2 = st.columns(2)
 with col1:
     if st.button("1년 시뮬레이션 진행"):
-        next_state = update_one_year(st.session_state.current_state, policy)
+        next_state = update_one_year(st.session_state.current_state, policy, mode)
         st.session_state.results.append(
             next_state.to_series(len(st.session_state.results) + 1)
         )
@@ -147,9 +155,9 @@ with col2:
         )
         st.session_state.results.clear()
 
-# 5) 메인 영역: 결과 테이블 & 개별 그래프
+# 6) 메인 영역: 결과 테이블 & 개별 그래프
 st.header("시뮬레이션 결과 (연 단위)")
-st.caption("※ 계수는 교육용 가정치이며, 한국형 개방경제의 방향성과 상호작용을 단순화한 것입니다.")
+st.caption("※ 모드에 따라 경제 반응 강도가 달라집니다.")
 
 if st.session_state.results:
     df = pd.DataFrame(st.session_state.results)
