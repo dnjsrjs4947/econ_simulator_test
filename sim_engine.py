@@ -8,6 +8,7 @@ def update_one_year(state: EconomicState, policy: PolicyInput, mode: str) -> Eco
     - 성장률·물가·실업률·GDP가 모두 좋아질 수도, 나빠질 수도 있음
     - 악순환(위기) / 선순환(호황) 구조 포함
     - 잠재성장률이 내생적으로 변함
+    - 기준금리 인상 → 물가 하락 효과 반영
     """
 
     # ===== 1. 모드별 계수 스케일 =====
@@ -97,7 +98,7 @@ def update_one_year(state: EconomicState, policy: PolicyInput, mode: str) -> Eco
 
     growth_1 = potential_growth + delta_growth_1
 
-    # ===== 7. 물가 =====
+    # ===== 7. 물가 (수요 + 비용 + 금리 효과) =====
     w_oil_inf    = +1.2 * shock_scale
     w_elec_inf   = +0.8 * shock_scale
     w_global_inf = +0.015 * shock_scale
@@ -105,12 +106,17 @@ def update_one_year(state: EconomicState, policy: PolicyInput, mode: str) -> Eco
 
     demand_gap = growth_1 - potential_growth
 
+    # 금리 인상 → 물가 하락 (수요 위축 + 기대 인플 하락)
+    w_interest_inflation = -0.25 * shock_scale
+    delta_inflation_interest = w_interest_inflation * d_interest
+
     inflation_1 = (
         state.inflation +
         w_oil_inf    * d_oil +
         w_elec_inf   * d_elec +
         w_global_inf * (d_global / 10.0) +
-        w_demand_inf * demand_gap
+        w_demand_inf * demand_gap +
+        delta_inflation_interest
     )
 
     # ===== 8. 실업률 =====
@@ -129,33 +135,42 @@ def update_one_year(state: EconomicState, policy: PolicyInput, mode: str) -> Eco
     # ✅ 9. 피드백(상호작용) — feedback_scale 적용
     # -------------------------------------------------
 
+    # 실업률 ↑ → 소비 ↓ → 성장률 ↓
     fb_growth_from_unemp = -0.05 * feedback_scale * (unemp_1 - state.unemployment)
+    # 물가 ↑ → 실질임금 ↓ → 소비 ↓ → 성장률 ↓
     fb_growth_from_infl  = -0.06 * feedback_scale * (inflation_1 - state.inflation)
+    # 성장률 변화의 자기 강화/악화
     fb_growth_from_growth = -0.04 * feedback_scale * (growth_1 - state.growth)
 
+    # 환율 ↑ → 수입물가 ↑ → 물가 ↑
     fb_infl_from_fx = 0.30 * feedback_scale * d_fx
+    # 실업률 ↑ → 소비 ↓ → 물가 ↓
     fb_infl_from_unemp = -0.12 * feedback_scale * (unemp_1 - state.unemployment)
 
+    # 성장률 ↓ → 실업률 ↑ (추가 오쿤)
     fb_unemp_from_growth = -0.20 * feedback_scale * (growth_1 - state.growth)
 
     # -------------------------------------------------
     # ✅ 10. 위기 트리거 (crisis_trigger_scale 적용)
     # -------------------------------------------------
-    crisis_growth_penalty = 0
-    crisis_inflation_spike = 0
-    crisis_unemployment_spike = 0
+    crisis_growth_penalty = 0.0
+    crisis_inflation_spike = 0.0
+    crisis_unemployment_spike = 0.0
 
+    # 실업률 위기
     if unemp_1 > 12:
-        crisis_growth_penalty -= 0.5 * crisis_trigger_scale
-        crisis_unemployment_spike += 0.3 * crisis_trigger_scale
+        crisis_growth_penalty        -= 0.5 * crisis_trigger_scale
+        crisis_unemployment_spike    += 0.3 * crisis_trigger_scale
 
+    # 물가 위기
     if inflation_1 > 6:
-        crisis_growth_penalty -= 0.4 * crisis_trigger_scale
-        crisis_inflation_spike += 0.5 * crisis_trigger_scale
+        crisis_growth_penalty        -= 0.4 * crisis_trigger_scale
+        crisis_inflation_spike       += 0.5 * crisis_trigger_scale
 
+    # 성장률 위기
     if growth_1 < -1:
-        crisis_growth_penalty -= 0.6 * crisis_trigger_scale
-        crisis_unemployment_spike += 0.4 * crisis_trigger_scale
+        crisis_growth_penalty        -= 0.6 * crisis_trigger_scale
+        crisis_unemployment_spike    += 0.4 * crisis_trigger_scale
 
     # ===== 11. 최종 지표 =====
     final_growth = (
