@@ -3,29 +3,33 @@ from data_model import EconomicState, PolicyInput
 
 def update_one_year(state: EconomicState, policy: PolicyInput, mode: str) -> EconomicState:
     """
-    한국형 동태 거시경제 시뮬레이터 (모드 선택 기능 포함)
-    mode:
-        - "안정형": 충격에 둔감, 경제가 쉽게 무너지지 않음
-        - "현실형": 충격에 적당히 반응, 실제 한국 경제 느낌
-        - "위기형": 충격에 매우 민감, 정책 실수 시 경제 붕괴 가능
+    한국형 동태 거시경제 시뮬레이터 (완전판)
+    - 안정형 / 현실형 / 위기형 모드 지원
+    - 성장률·물가·실업률·GDP가 모두 좋아질 수도, 나빠질 수도 있음
+    - 악순환(위기) / 선순환(호황) 구조 포함
+    - 잠재성장률이 내생적으로 변함
     """
 
-    # ===== 1. 모드별 계수 스케일 설정 =====
+    # ===== 1. 모드별 계수 스케일 =====
     if mode == "안정형":
-        shock_scale = 0.5     # 충격 절반만 반영
-        feedback_scale = 0.6  # 피드백 약하게
-        potential_scale = 0.7 # 잠재성장률 변화도 약하게
+        shock_scale = 0.5
+        feedback_scale = 0.6
+        crisis_trigger_scale = 0.5
+        potential_scale = 0.7
     elif mode == "현실형":
-        shock_scale = 1.0     # 기본값
+        shock_scale = 1.0
         feedback_scale = 1.0
+        crisis_trigger_scale = 1.0
         potential_scale = 1.0
     elif mode == "위기형":
-        shock_scale = 1.8     # 충격 1.8배
-        feedback_scale = 2.0  # 피드백 2배 (악순환 강화)
-        potential_scale = 1.5 # 잠재성장률도 크게 흔들림
+        shock_scale = 1.8
+        feedback_scale = 2.0
+        crisis_trigger_scale = 2.0
+        potential_scale = 1.5
     else:
         shock_scale = 1.0
         feedback_scale = 1.0
+        crisis_trigger_scale = 1.0
         potential_scale = 1.0
 
     # ===== 2. 기준값 =====
@@ -134,15 +138,51 @@ def update_one_year(state: EconomicState, policy: PolicyInput, mode: str) -> Eco
 
     fb_unemp_from_growth = -0.20 * feedback_scale * (growth_1 - state.growth)
 
-    # ===== 10. 최종 지표 =====
-    final_growth = growth_1 + fb_growth_from_unemp + fb_growth_from_infl + fb_growth_from_growth
-    final_inflation = inflation_1 + fb_infl_from_fx + fb_infl_from_unemp
-    final_unemployment = unemp_1 + fb_unemp_from_growth
+    # -------------------------------------------------
+    # ✅ 10. 위기 트리거 (crisis_trigger_scale 적용)
+    # -------------------------------------------------
+    crisis_growth_penalty = 0
+    crisis_inflation_spike = 0
+    crisis_unemployment_spike = 0
+
+    if unemp_1 > 12:
+        crisis_growth_penalty -= 0.5 * crisis_trigger_scale
+        crisis_unemployment_spike += 0.3 * crisis_trigger_scale
+
+    if inflation_1 > 6:
+        crisis_growth_penalty -= 0.4 * crisis_trigger_scale
+        crisis_inflation_spike += 0.5 * crisis_trigger_scale
+
+    if growth_1 < -1:
+        crisis_growth_penalty -= 0.6 * crisis_trigger_scale
+        crisis_unemployment_spike += 0.4 * crisis_trigger_scale
+
+    # ===== 11. 최종 지표 =====
+    final_growth = (
+        growth_1 +
+        fb_growth_from_unemp +
+        fb_growth_from_infl +
+        fb_growth_from_growth +
+        crisis_growth_penalty
+    )
+
+    final_inflation = (
+        inflation_1 +
+        fb_infl_from_fx +
+        fb_infl_from_unemp +
+        crisis_inflation_spike
+    )
+
+    final_unemployment = (
+        unemp_1 +
+        fb_unemp_from_growth +
+        crisis_unemployment_spike
+    )
 
     # 성장률 변동폭 제한
     final_growth = max(min(final_growth, 15.0), -10.0)
 
-    # ===== 11. GDP =====
+    # ===== 12. GDP =====
     final_gdp = state.gdp * (1 + final_growth / 100)
 
     return EconomicState(
