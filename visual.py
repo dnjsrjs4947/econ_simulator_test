@@ -4,8 +4,8 @@ import pandas as pd
 
 def plot_time_series(df: pd.DataFrame):
     """
-    (필요하다면) 여러 지표를 한 그래프에 그리는 통합 그래프.
-    현재는 사용하지 않더라도, 나중에 비교용으로 쓸 수 있도록 남겨둠.
+    여러 지표를 한 그래프에 그리는 통합 그래프.
+    필요하면 메인 화면에서 호출해서 사용할 수 있다.
     """
     fig = go.Figure()
     metrics = ["gdp", "inflation", "unemployment", "growth"]
@@ -15,14 +15,14 @@ def plot_time_series(df: pd.DataFrame):
                 x=df["year"],
                 y=df[m],
                 name=m,
-                mode="lines+markers"
+                mode="lines+markers",
             )
         )
     fig.update_layout(
         title="시뮬레이션 결과 추이 (통합)",
         xaxis_title="Year",
         yaxis_title="값",
-        legend_title="지표"
+        legend_title="지표",
     )
     return fig
 

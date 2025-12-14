@@ -5,7 +5,7 @@ from data_model import EconomicState, PolicyInput
 from sim_engine import update_one_year
 from visual import plot_metric
 
-st.set_page_config(page_title="거시경제 정책 시뮬레이터", layout="wide")
+st.set_page_config(page_title="거시경제 정책 시뮬레이터 (한국형)", layout="wide")
 
 # 1) 세션 상태 초기화
 if "current_state" not in st.session_state:
@@ -149,6 +149,8 @@ with col2:
 
 # 5) 메인 영역: 결과 테이블 & 개별 그래프
 st.header("시뮬레이션 결과 (연 단위)")
+st.caption("※ 계수는 교육용 가정치이며, 한국형 개방경제의 방향성과 상호작용을 단순화한 것입니다.")
+
 if st.session_state.results:
     df = pd.DataFrame(st.session_state.results)
     st.dataframe(df.set_index("year"), use_container_width=True)
